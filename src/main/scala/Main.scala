@@ -15,60 +15,138 @@ Main extends App {
   val dropPeopleCmd = DBIO.seq(peopleTable.schema.drop)
   val initPeopleCmd = DBIO.seq(peopleTable.schema.create)
 
-  def dropDB = {
-    //do a drop followed by initialisePeople
+  def dropPeopleTable(): Future[Unit] = {
     val dropFuture = Future{
       db.run(dropPeopleCmd)
     }
-    //Attempt to drop the table, Await does not block here
-    Await.result(dropFuture, Duration.Inf).andThen{
-      case Success(_) =>  initialisePeople
-      case Failure(error) => println("Dropping the table failed due to: " + error.getMessage)
-        initialisePeople
+
+    Await.result(dropFuture, Duration.Inf).andThen {
+      case Success(_) => println("People table dropped"); createAndPopulatePeopleTable()
+      case Failure(error) => println("problem: " + error.getMessage); createAndPopulatePeopleTable()
     }
   }
 
-  def initialisePeople = {
-    //initialise people
-    val setupFuture =  Future {
+  def createAndPopulatePeopleTable(): Unit = {
+    val setupTable = Future{
       db.run(initPeopleCmd)
     }
-    //once our DB has finished initializing we are ready to roll, Await does not block
-    Await.result(setupFuture, Duration.Inf).andThen{
-      case Success(_) => runQuery
-      case Failure(error) => println("Initialising the table failed due to: " + error.getMessage)
+    Await.result(setupTable, Duration.Inf).andThen {
+      case Success (_) => {
+        val addRecords = Future {
+          val querytoRun = peopleTable ++= Seq(
+            (10, "Jack", "Wood", 30),
+            (11, "Jonathon", "Warren", 31),
+            (12, "Jim", "Walker", 32),
+            (13, "John", "Wick", 33),
+            (14, "Jon", "Watson", 34),
+            (15, "James", "Watts", 35),
+            (16, "Janet", "Wales", 36),
+            (17, "Jane", "Watt", 37),
+            (18, "Janey", "Wong", 38),
+            (19, "Juliet", "Waters", 39)
+          )
+          db.run(querytoRun)
+        }
+        Await.result(addRecords, Duration.Inf).andThen {
+          case Success (_) => println("People Added"); getAllPeople()
+          case Failure (error) => println("Error: " + error.getMessage)
+        }
+      }
+      case Failure (error) => println("Error: " + error.getMessage)
     }
   }
 
-  def runQuery = {
-    val insertPeople = Future {
-      val query = peopleTable ++= Seq(
-        (10, "Jack", "Wood", 36),
-        (20, "Tim", "Brown", 24)
-      )
-    // insert into `PEOPLE` (`PER_FNAME`,`PER_LNAME`,`PER_AGE`)  values (?,?,?)
-    println(query.statements.head) // would print out the query one line up
-    db.run(query)
-    }
-    Await.result(insertPeople, Duration.Inf).andThen {
-      case Success(_) => listPeople
-      case Failure(error) => println("Welp! Something went wrong! " + error.getMessage)
-    }
-  }
-
-  def listPeople = {
-    val queryFuture = Future {
-      // simple query that selects everything from People and prints them out
+  def getAllPeople(): Future[Unit] = {
+    val getAllQuery = Future {
       db.run(peopleTable.result).map(_.foreach {
-        case (id, fName, lName, age) => println(s" $id $fName $lName $age")})
+        case (id, fName, lName, age) => println(s" $id $fName $lName $age")
+      })
     }
-    Await.result(queryFuture, Duration.Inf).andThen {
-      case Success(_) =>  db.close()  //cleanup DB connection
-      case Failure(error) => println("Listing people failed due to: " + error.getMessage)
+    Await.result(getAllQuery, Duration.Inf).andThen {
+      case Success (_) => println("Records Printed"); printAllBeginningWithJo()
+      case Failure (error) => println("Error: " + error.getMessage)
+    }
+
+  }
+
+  def printAllBeginningWithJo() = {
+    val getJoNamesQuery = Future {
+      db.run(peopleTable.result).map(_.filter {
+        case (id, fName, lName, age) => fName.startsWith("Jo")
+      }.foreach{
+        case (id, fName, lName, age) => println(s" $id $fName $lName $age")
+      })
+    }
+
+    Await.result(getJoNamesQuery, Duration.Inf).andThen {
+      case Success (_) => println("get Jo Names succeeded")
+      case Failure (error) => println("get Jo Names failed: " + error.getMessage)
     }
   }
 
-  dropDB
-  Thread.sleep(10000)
+  dropPeopleTable()
+  Thread.sleep(5000)
+
+
+
+
+
+
+
+
+//  def dropDB = {
+//    //do a drop followed by initialisePeople
+//    val dropFuture = Future{
+//      db.run(dropPeopleCmd)
+//    }
+//    //Attempt to drop the table, Await does not block here
+//    Await.result(dropFuture, Duration.Inf).andThen{
+//      case Success(_) =>  initialisePeople
+//      case Failure(error) => println("Dropping the table failed due to: " + error.getMessage)
+//        initialisePeople
+//    }
+//  }
+//
+//  def initialisePeople = {
+//    //initialise people
+//    val setupFuture =  Future {
+//      db.run(initPeopleCmd)
+//    }
+//    //once our DB has finished initializing we are ready to roll, Await does not block
+//    Await.result(setupFuture, Duration.Inf).andThen{
+//      case Success(_) => runQuery
+//      case Failure(error) => println("Initialising the table failed due to: " + error.getMessage)
+//    }
+//  }
+//
+//  def runQuery = {
+//    val insertPeople = Future {
+//      val query = peopleTable ++= Seq(
+//        (10, "Jack", "Wood", 36),
+//        (20, "Tim", "Brown", 24)
+//      )
+//    // insert into `PEOPLE` (`PER_FNAME`,`PER_LNAME`,`PER_AGE`)  values (?,?,?)
+//    println(query.statements.head) // would print out the query one line up
+//    db.run(query)
+//    }
+//    Await.result(insertPeople, Duration.Inf).andThen {
+//      case Success(_) => listPeople
+//      case Failure(error) => println("Welp! Something went wrong! " + error.getMessage)
+//    }
+//  }
+//
+//  def listPeople = {
+//    val queryFuture = Future {
+//      // simple query that selects everything from People and prints them out
+//      db.run(peopleTable.result).map(_.foreach {
+//        case (id, fName, lName, age) => println(s" $id $fName $lName $age")})
+//    }
+//    Await.result(queryFuture, Duration.Inf).andThen {
+//      case Success(_) =>  db.close()  //cleanup DB connection
+//      case Failure(error) => println("Listing people failed due to: " + error.getMessage)
+//    }
+//  }
+
+//  dropDB
 
 }
