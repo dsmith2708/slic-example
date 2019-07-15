@@ -4,7 +4,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 
-object Main extends App {
+object
+Main extends App {
 
   // The config string refers to mysqlDB that we defined in application.conf
   val db = Database.forConfig("mysqlDB")
