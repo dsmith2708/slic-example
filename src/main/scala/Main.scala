@@ -1,4 +1,6 @@
 import slick.jdbc.MySQLProfile.api._
+
+import scala.collection.immutable.Range
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -43,7 +45,15 @@ Main extends App {
             (16, "Janet", "Wales", 36),
             (17, "Jane", "Watt", 37),
             (18, "Janey", "Wong", 38),
-            (19, "Juliet", "Waters", 39)
+            (19, "Juliet", "Waters", 39),
+            (20, "Jack", "Webber", 40),
+            (21, "Jack", "Waters", 41),
+            (22, "Jack", "Watson", 42),
+            (23, "J", "W", 40),
+            (24, "Ji", "Wa", 41),
+            (25, "Joooooooob", "Waaaaaaaaaat", 42),
+
+
           )
           db.run(querytoRun)
         }
@@ -63,90 +73,88 @@ Main extends App {
       })
     }
     Await.result(getAllQuery, Duration.Inf).andThen {
-      case Success (_) => println("Records Printed"); printAllBeginningWithJo()
+      case Success (_) => println("Records Printed"); printAllBeginningWithJoDeleteAndPrintResult()
       case Failure (error) => println("Error: " + error.getMessage)
     }
 
   }
 
-  def printAllBeginningWithJo() = {
+  def printAllBeginningWithJoDeleteAndPrintResult() = {
     val getJoNamesQuery = Future {
-      db.run(peopleTable.result).map(_.filter {
+      val allResults = db.run(peopleTable.result)
+      allResults.map(_.filter {
         case (id, fName, lName, age) => fName.startsWith("Jo")
       }.foreach{
         case (id, fName, lName, age) => println(s" $id $fName $lName $age")
       })
+      val deleteAction = peopleTable.filter( p => p.fName.startsWith("Jo")).delete
+      db.run(deleteAction)
     }
 
     Await.result(getJoNamesQuery, Duration.Inf).andThen {
-      case Success (_) => println("get Jo Names succeeded")
+      case Success (_) => println("get and delete Jo Names succeeded"); printResult()
       case Failure (error) => println("get Jo Names failed: " + error.getMessage)
     }
   }
 
+  def printResult(): Unit = {
+    val getAllQuery = Future {
+      db.run(peopleTable.result).map(_.foreach {
+        case (id, fName, lName, age) => println(s" $id $fName $lName $age")
+      })
+    }
+    Await.result(getAllQuery, Duration.Inf).andThen {
+      case Success (_) => println("Records Printed"); getAllWithSameFirstName()
+      case Failure (error) => println("Error: " + error.getMessage)
+    }
+  }
+
+  def getAllWithSameFirstName() = {
+    val firstNameToMatch = "Jack"
+    println("Getting all with same first name")
+    val getAllWithSameFirstNameQuery = Future {
+      val filter = peopleTable.filter {
+        p => p.fName === firstNameToMatch
+      }
+      val action = filter.result
+      val actionResult = db.run(action)
+      actionResult.map {
+        case x => println(s"found ${x.length} results")
+      }
+      actionResult.map(_.foreach {
+        case (id, fName, lName, age) => println(s"$id $fName $lName $age")
+      })
+    }
+
+    Await.result(getAllWithSameFirstNameQuery, Duration.Inf).andThen {
+      case Success (_) => println("got all with same first name"); getAllFourToSixCharactersLong()
+      case Failure (error) => println("Error getting all with same first name: " + error.getMessage)
+    }
+  }
+
+  def getAllFourToSixCharactersLong(): Unit = {
+    println("getting all first names 4-6 characters long")
+    val getNamesFourToSixFuture = Future{
+      val filterToUse = peopleTable.filter {
+        p => p.fName.length <= 6 && p.fName.length >= 4
+      }
+      val result = db.run(filterToUse.result)
+
+      result.map(_.foreach {
+        case (id, fName, lName, age) => println(s" $id $fName $lName $age")
+      })
+    }
+
+    Await.result(getNamesFourToSixFuture, Duration.Inf).andThen {
+      case Success (_) => println("got all names 4-6 long")
+      case Failure (error) => println("error getting names 4-6 characters long " + error.getMessage)
+    }
+  }
+
+
+
   dropPeopleTable()
   Thread.sleep(5000)
 
-
-
-
-
-
-
-
-//  def dropDB = {
-//    //do a drop followed by initialisePeople
-//    val dropFuture = Future{
-//      db.run(dropPeopleCmd)
-//    }
-//    //Attempt to drop the table, Await does not block here
-//    Await.result(dropFuture, Duration.Inf).andThen{
-//      case Success(_) =>  initialisePeople
-//      case Failure(error) => println("Dropping the table failed due to: " + error.getMessage)
-//        initialisePeople
-//    }
-//  }
-//
-//  def initialisePeople = {
-//    //initialise people
-//    val setupFuture =  Future {
-//      db.run(initPeopleCmd)
-//    }
-//    //once our DB has finished initializing we are ready to roll, Await does not block
-//    Await.result(setupFuture, Duration.Inf).andThen{
-//      case Success(_) => runQuery
-//      case Failure(error) => println("Initialising the table failed due to: " + error.getMessage)
-//    }
-//  }
-//
-//  def runQuery = {
-//    val insertPeople = Future {
-//      val query = peopleTable ++= Seq(
-//        (10, "Jack", "Wood", 36),
-//        (20, "Tim", "Brown", 24)
-//      )
-//    // insert into `PEOPLE` (`PER_FNAME`,`PER_LNAME`,`PER_AGE`)  values (?,?,?)
-//    println(query.statements.head) // would print out the query one line up
-//    db.run(query)
-//    }
-//    Await.result(insertPeople, Duration.Inf).andThen {
-//      case Success(_) => listPeople
-//      case Failure(error) => println("Welp! Something went wrong! " + error.getMessage)
-//    }
-//  }
-//
-//  def listPeople = {
-//    val queryFuture = Future {
-//      // simple query that selects everything from People and prints them out
-//      db.run(peopleTable.result).map(_.foreach {
-//        case (id, fName, lName, age) => println(s" $id $fName $lName $age")})
-//    }
-//    Await.result(queryFuture, Duration.Inf).andThen {
-//      case Success(_) =>  db.close()  //cleanup DB connection
-//      case Failure(error) => println("Listing people failed due to: " + error.getMessage)
-//    }
-//  }
-
-//  dropDB
 
 }
